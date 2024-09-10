@@ -110,12 +110,8 @@ function getInputEllipsoids() {
 //get the input triangles from the standard class URL
 function getInputTriangles() {
     const INPUT_TRIANGLES_URL = 
-<<<<<<< HEAD
         "https://skandasshastry.github.io/prog1/proj_triangles.json";
         
-=======
-        "https://skandasshastry.github.io/prog1/proj_triangles.json"
->>>>>>> f009346ca6e068d8ae8e250a0a7cb721b3cadc87
     // load the triangles file
     var httpReq = new XMLHttpRequest(); // a new http request
     httpReq.open("GET",INPUT_TRIANGLES_URL,false); // init the request
@@ -469,6 +465,10 @@ function main() {
     // Get the canvas and context
     var canvas = document.getElementById("viewport"); 
     var context = canvas.getContext("2d");
+
+     // Set background to black
+     context.fillStyle = "black";
+     context.fillRect(0, 0, canvas.width, canvas.height);
  
     // Create the image
     //drawRandPixels(context);
