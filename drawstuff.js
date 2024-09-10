@@ -245,7 +245,7 @@ function drawRandPixelsInInputTriangles(context) {
     var w = context.canvas.width;
     var h = context.canvas.height;
     var imagedata = context.createImageData(w,h);
-    const PIXEL_DENSITY = 0.1;
+    const PIXEL_DENSITY = 100;
     var numCanvasPixels = (w*h)*PIXEL_DENSITY; 
     
     if (inputTriangles != String.null) { 
@@ -479,7 +479,7 @@ function main() {
     drawRandPixelsInInputTriangles(context);
       // shows how to draw pixels and read input file
     
-    //drawInputTrainglesUsingPaths(context);
+    // drawInputTrainglesUsingPaths(context);
       // shows how to read input file, but not how to draw pixels
     
     //drawRandPixelsInInputBoxes(context);
