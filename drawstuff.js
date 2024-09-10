@@ -111,7 +111,7 @@ function getInputEllipsoids() {
 function getInputTriangles() {
     const INPUT_TRIANGLES_URL = 
         // "https://ncsucgclass.github.io/prog1/triangles2.json";
-        "https://skandasshastry.github.io/prog1/ellipsoids.json"
+        "https://skandasshastry.github.io/prog1/proj_triangles.json"
     // load the triangles file
     var httpReq = new XMLHttpRequest(); // a new http request
     httpReq.open("GET",INPUT_TRIANGLES_URL,false); // init the request
