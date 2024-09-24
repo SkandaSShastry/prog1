@@ -110,7 +110,7 @@ function getInputEllipsoids() {
 //get the input triangles from the standard class URL
 function getInputTriangles() {
     const INPUT_TRIANGLES_URL = 
-        "https://skandasshastry.github.io/prog1/proj_triangles.json";
+        "https://ncsucgclass.github.io/prog1/triangles2.json";
         
     // load the triangles file
     var httpReq = new XMLHttpRequest(); // a new http request
@@ -245,14 +245,14 @@ function drawRandPixelsInInputTriangles(context) {
     var w = context.canvas.width;
     var h = context.canvas.height;
     var imagedata = context.createImageData(w,h);
-    const PIXEL_DENSITY = 100;
+    const PIXEL_DENSITY = 1;
     var numCanvasPixels = (w*h)*PIXEL_DENSITY; 
     
     if (inputTriangles != String.null) { 
         var x = 0; var y = 0; // pixel coord init
         var cx = 0; var cy = 0; // init center x and y coord
         var numTrianglePixels = 0; // init num pixels in triangle
-        var c = new Color(0,0,0,0); // init the triangle color
+        var c = new Color(0,255,0,0); // init the triangle color
         var n = inputTriangles.length; // the number of input files
         //console.log("number of files: " + n);
 
@@ -370,7 +370,7 @@ function drawRandPixelsInInputBoxes(context) {
     var w = context.canvas.width;
     var h = context.canvas.height;
     var imagedata = context.createImageData(w,h);
-    const PIXEL_DENSITY = 0.1;
+    const PIXEL_DENSITY = 100;
     var numCanvasPixels = (w*h)*PIXEL_DENSITY; 
     
     if (inputBoxes != String.null) { 
@@ -379,7 +379,7 @@ function drawRandPixelsInInputBoxes(context) {
         var by = 0; var ty = 0; // input by, ty from boxes.json
         var fz = 0; var rz = 0; // input fz, rz from boxes.json
         var numBoxPixels = 0; // init num pixels in boxes
-        var c = new Color(0,0,0,0); // init the box color
+        var c = new Color(255,255,255,255); // init the box color
         var n = inputBoxes.length; // the number of input boxes
         //console.log("number of ellipses: " + n);
 
@@ -458,6 +458,257 @@ function drawInputBoxesUsingPaths(context) {
     } // end if box files found
 } // end draw input boxes
 
+function renderTriangles(context) {
+    
+    var inputTriangles = getInputTriangles();
+    var w = context.canvas.width;
+    var h = context.canvas.height;
+    var imagedata = context.createImageData(w, h);
+    var depthBuffer = new Array(w * h).fill(Infinity);
+    
+
+    if (inputTriangles != String.null) {
+        var eye = {x: 0.5, y: 0.5, z: -0.5};
+        var lookAt = {x: 0, y: 0, z: 1};
+        var up = {x: 0, y: 1, z: 0};
+
+        for (var x = 0; x < w; x++) {
+            for (var y = 0; y < h; y++) {
+                var ray = pixelToRay(x, y, w, h, eye, lookAt, up);
+                // console.log(ray)
+                var closestIntersection = null;
+                var closestTriangle = null;
+                var closestTriangleData = null;
+                // console.log(ray.direction)
+
+                for (var f = 0; f < inputTriangles.length; f++) {
+                    for (var t = 0; t < inputTriangles[f].triangles.length; t++) {
+                        var triangle = getTriangleVertices(inputTriangles[f], t);
+                        // triangle[0][0] = -triangle[0][0];
+                        // triangle[1][0] = -triangle[1][0];
+                        // triangle[2][0] = -triangle[2][0];
+                        var intersection = rayTriangleIntersection(ray, triangle);
+                        
+                        if (intersection && (!closestIntersection || intersection.distance < closestIntersection.distance)) {
+                            closestIntersection = intersection;
+                            // console.log("closest intersection: " + JSON.stringify(closestIntersection));
+                            closestTriangle = triangle;
+                            closestTriangleData = inputTriangles[f];
+                        }
+                    }
+                }
+                // console.log("closest intersection: " + closestIntersection)
+                if (closestIntersection) {
+                    var depthIndex = y * w + x;
+                    if (closestIntersection.distance < depthBuffer[depthIndex]) {
+                        depthBuffer[depthIndex] = closestIntersection.distance;
+                        var color = calculateLighting(closestIntersection, closestTriangle, closestTriangleData.material);
+                        drawPixel(imagedata, x, y, color);
+                    }
+                }
+            }
+        }
+        
+        context.putImageData(imagedata, 0, 0);
+    }
+}
+
+function pixelToRay(x, y, w, h, eye, lookAt, up) {
+    // Calculate the view plane
+    var viewPlaneDistance = 0.5;
+    var aspectRatio = w / h;
+    var viewPlaneHeight = 1;
+    var viewPlaneWidth = aspectRatio * viewPlaneHeight;
+
+    // Calculate view plane coordinates
+    var u = (x / w - 0.5) * viewPlaneWidth;
+    var v = (0.5 - y / h) * viewPlaneHeight;
+
+    // Calculate view space basis vectors
+    var forward = normalize(subtract(lookAt, eye));
+    var right = normalize(crossProduct(forward, up));
+    var upVector = crossProduct(right, forward);
+
+    // Calculate ray direction
+    var rayDirection = normalize({
+        x: u * right.x + v * upVector.x + viewPlaneDistance * forward.x,
+        y: u * right.y + v * upVector.y + viewPlaneDistance * forward.y,
+        z: u * right.z + v * upVector.z + viewPlaneDistance * forward.z
+    });
+
+    return { origin: eye, direction: rayDirection };
+}
+
+function getTriangleVertices(triangleData, index) {
+    var vertexIndices = triangleData.triangles[index];
+    return vertexIndices.map(i => triangleData.vertices[i]);
+}
+
+function rayTriangleIntersection(ray, triangle) {
+    const EPSILON = 0.0000001;
+    var vertex0 = triangle[0];
+    var vertex1 = triangle[1];
+    var vertex2 = triangle[2];
+
+    var edge1 = subtract(vertex1, vertex0);
+    var edge2 = subtract(vertex2, vertex0);
+    var h = crossProduct(ray.direction, edge2);
+    var a = dotProduct(edge1, h);
+
+    if (a > -EPSILON && a < EPSILON) return null;
+
+    var f = 1.0 / a;
+    var s = subtract(ray.origin, vertex0);
+    var u = f * dotProduct(s, h);
+
+    if (u < 0.0 || u > 1.0) return null;
+
+    var q = crossProduct(s, edge1);
+    var v = f * dotProduct(ray.direction, q);
+
+    if (v < 0.0 || u + v > 1.0) return null;
+
+    var t = f * dotProduct(edge2, q);
+    // console.log("t:", t);
+
+    if (t > EPSILON) {
+        var scaledDirection = scaleVector(ray.direction, t);
+        // console.log("scaledDirection:", scaledDirection);
+        var point = add(ray.origin, scaledDirection);
+        // console.log("point:", point);
+        return {
+            point: point,
+            distance: t,
+            u: u,
+            v: v
+        };
+    }
+
+    return null;
+}
+
+function scaleVector(v, s) {
+    return { x: v.x * s, y: v.y * s, z: v.z * s };
+}
+
+function calculateLighting(intersection, triangle, material) {
+    var lightPosition = { x: -3, y: 1, z: -0.5 };
+    var lightColor = { r: 1, g: 1, b: 1 };
+    var ambientIntensity = 0.1;
+    var diffuseIntensity = 0.7;
+    var specularIntensity = 0.2;
+    var shininess = 10;
+
+    // Calculate surface normal
+    var edge1 = subtract(triangle[1], triangle[0]);
+    var edge2 = subtract(triangle[2], triangle[0]);
+    var normal = normalize(crossProduct(edge1, edge2));
+
+    // Calculate light direction
+    var lightDir = normalize(subtract(lightPosition, intersection.point));
+
+    // Ambient component
+    var ambient = scale(material.diffuse, ambientIntensity);
+    
+
+    // Diffuse component
+    var diffuseFactor = Math.max(dotProduct(normal, lightDir), 0);
+    var diffuse = scale(material.diffuse, diffuseFactor * diffuseIntensity);
+    
+
+    // Specular component
+    var viewDir = normalize(subtract({ x: 0.5, y: 0.5, z: -0.5 }, intersection.point));
+    var halfwayDir = normalize(add(lightDir, viewDir));
+    var specularFactor = Math.pow(Math.max(dotProduct(normal, halfwayDir), 0), shininess);
+    var specular = scale(lightColor, specularFactor * specularIntensity);
+
+    // Combine components
+    var finalColor = add(add(ambient, diffuse), specular);
+
+    const finalColour = clampColor(finalColor);
+
+    return new Color(
+        Math.min(finalColour[0] * 255, 255),
+        Math.min(finalColour[1] * 255, 255),
+        Math.min(finalColour[2] * 255, 255),
+        255
+      );
+}
+
+function clampColor(color) {
+    return [
+      Math.max(0, Math.min(1, color[0])),
+      Math.max(0, Math.min(1, color[1])),
+      Math.max(0, Math.min(1, color[2]))
+    ];
+}
+
+// Vector operations
+function add(a, b) {
+    const normalize = (obj) => {
+      if (Array.isArray(obj)) return obj;
+      if ('r' in obj) return [obj.r, obj.g, obj.b];
+      if ('x' in obj) return [obj.x, obj.y, obj.z];
+      if ('0' in obj) return [obj[0], obj[1], obj[2]];
+      throw new Error("Unsupported input type for add function");
+    };
+  
+    const arrA = normalize(a);
+    const arrB = normalize(b);
+  
+    return [arrA[0] + arrB[0], arrA[1] + arrB[1], arrA[2] + arrB[2]];
+  }
+function subtract(a, b) {
+    if (Array.isArray(a)) {
+      a = { x: a[0], y: a[1], z: a[2] };
+    }
+    if (Array.isArray(b)) {
+      b = { x: b[0], y: b[1], z: b[2] };
+    }
+    const epsilon = 1e-6; // small value to account for precision errors
+    return { x: a.x - b.x + epsilon, y: a.y - b.y + epsilon, z: a.z - b.z + epsilon };
+  }
+
+  function scale(a, s) {
+    if (Array.isArray(a)) {
+      return [a[0] * s, a[1] * s, a[2] * s];
+    } else if (typeof a === 'object' && 'r' in a) {
+      return { r: a.r * s, g: a.g * s, b: a.b * s };
+    } else {
+      throw new Error("Unsupported input type for scale function");
+    }
+  }
+function dotProduct(a, b) {
+    if (Array.isArray(a)) {
+      a = { x: a[0], y: a[1], z: a[2] };
+    }
+    if (Array.isArray(b)) {
+      b = { x: b[0], y: b[1], z: b[2] };
+    }
+    return a.x * b.x + a.y * b.y + a.z * b.z;
+  }
+
+function crossProduct(a, b) {
+    return {
+        x: a.y * b.z - a.z * b.y,
+        y: a.z * b.x - a.x * b.z,
+        z: a.x * b.y - a.y * b.x
+    };
+}
+
+function normalize(v) {
+    // console.log(v);
+    if (Array.isArray(v)) {
+        var length = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+        // console.log("length: ", length);
+        return [v[0] / length, v[1] / length, v[2] / length];
+    } else {
+        var length = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+        // console.log("Normalized object:", { x: v.x / length, y: v.y / length, z: v.z / length });
+        return { x: v.x / length, y: v.y / length, z: v.z / length };
+    }
+}
+
 /* main -- here is where execution begins after window load */
 
 function main() {
@@ -465,10 +716,10 @@ function main() {
     // Get the canvas and context
     var canvas = document.getElementById("viewport"); 
     var context = canvas.getContext("2d");
+    renderTriangles(context);
 
-     // Set background to black
-     context.fillStyle = "black";
-     context.fillRect(0, 0, canvas.width, canvas.height);
+    // drawRandPixelsInInputBoxes(context);
+      // shows how to draw pixels and read input file
  
     // Create the image
     //drawRandPixels(context);
@@ -480,14 +731,11 @@ function main() {
     //drawInputEllipsoidsUsingArcs(context);
       // shows how to read input file, but not how to draw pixels
     
-    drawRandPixelsInInputTriangles(context);
+    // drawRandPixelsInInputTriangles(context);
       // shows how to draw pixels and read input file
     
     // drawInputTrainglesUsingPaths(context);
       // shows how to read input file, but not how to draw pixels
-    
-    //drawRandPixelsInInputBoxes(context);
-      // shows how to draw pixels and read input file
     
     //drawInputBoxesUsingPaths(context);
       // shows how to read input file, but not how to draw pixels
