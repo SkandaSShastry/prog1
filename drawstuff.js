@@ -108,7 +108,7 @@ function getInputEllipsoids() {
 } // end get input ellipsoids
 
 //get the input triangles from the standard class URL
-function getInputTriangles() {
+function getInputTriangles() { 
     const INPUT_TRIANGLES_URL = 
         "https://ncsucgclass.github.io/prog1/triangles2.json";
         
@@ -131,7 +131,7 @@ function getInputTriangles() {
 //get the input boxex from the standard class URL
 function getInputBoxes() {
     const INPUT_BOXES_URL = 
-        "https://ncsucgclass.github.io/prog1/boxes.json";
+        "https://skandasshastry.github.io/prog1/boxes.json";
         
     // load the boxes file
     var httpReq = new XMLHttpRequest(); // a new http request
@@ -370,7 +370,7 @@ function drawRandPixelsInInputBoxes(context) {
     var w = context.canvas.width;
     var h = context.canvas.height;
     var imagedata = context.createImageData(w,h);
-    const PIXEL_DENSITY = 100;
+    const PIXEL_DENSITY = 50;
     var numCanvasPixels = (w*h)*PIXEL_DENSITY; 
     
     if (inputBoxes != String.null) { 
@@ -471,9 +471,11 @@ function renderTriangles(context) {
         var eye = {x: 0.5, y: 0.5, z: -0.5};
         var lookAt = {x: 0, y: 0, z: 1};
         var up = {x: 0, y: 1, z: 0};
+        var blackColor = new Color(0, 0, 0, 255);
 
         for (var x = 0; x < w; x++) {
             for (var y = 0; y < h; y++) {
+                drawPixel(imagedata, x, y, blackColor);
                 var ray = pixelToRay(x, y, w, h, eye, lookAt, up);
                 // console.log(ray)
                 var closestIntersection = null;
@@ -709,6 +711,63 @@ function normalize(v) {
     }
 }
 
+function drawInputTrianglesUsingPaths(context) {
+    var inputTriangles = getInputTriangles();
+    
+    if (inputTriangles != String.null) {
+        var w = context.canvas.width;
+        var h = context.canvas.height;
+
+        // Find the min and max coordinates to normalize the vertices
+        var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        
+        // Loop over all vertices to find the bounds
+        inputTriangles.forEach(file => {
+            file.vertices.forEach(vertex => {
+                if (vertex[0] < minX) minX = vertex[0];
+                if (vertex[0] > maxX) maxX = vertex[0];
+                if (vertex[1] < minY) minY = vertex[1];
+                if (vertex[1] > maxY) maxY = vertex[1];
+            });
+        });
+        
+        // Normalize the vertices so they fit within the canvas
+        var scaleX = w / (maxX - minX);
+        var scaleY = h / (maxY - minY);
+        var scale = Math.min(scaleX, scaleY); // Uniform scaling to avoid distortion
+
+        // Loop over the input files
+        inputTriangles.forEach(file => {
+            file.triangles.forEach(triangle => {
+                var vertex1 = file.vertices[triangle[0]];
+                var vertex2 = file.vertices[triangle[1]];
+                var vertex3 = file.vertices[triangle[2]];
+
+                // Apply normalization and scaling to vertex positions
+                var v1 = [(vertex1[0] - minX) * scale, h - (vertex1[1] - minY) * scale]; // Flipping Y for correct orientation
+                var v2 = [(vertex2[0] - minX) * scale, h - (vertex2[1] - minY) * scale];
+                var v3 = [(vertex3[0] - minX) * scale, h - (vertex3[1] - minY) * scale];
+
+                // Set the color for the triangle
+                context.fillStyle = `rgb(
+                    ${Math.floor(file.material.diffuse[0] * 255)},
+                    ${Math.floor(file.material.diffuse[1] * 255)},
+                    ${Math.floor(file.material.diffuse[2] * 255)}
+                )`;
+
+                // Draw the triangle
+                var path = new Path2D();
+                path.moveTo(v1[0], v1[1]);
+                path.lineTo(v2[0], v2[1]);
+                path.lineTo(v3[0], v3[1]);
+                path.closePath();
+                context.fill(path);
+            });
+        });
+    }
+}
+
+
 /* main -- here is where execution begins after window load */
 
 function main() {
@@ -716,10 +775,17 @@ function main() {
     // Get the canvas and context
     var canvas = document.getElementById("viewport"); 
     var context = canvas.getContext("2d");
-    renderTriangles(context);
 
     // drawRandPixelsInInputBoxes(context);
-      // shows how to draw pixels and read input file
+
+    
+    window.addEventListener("keydown", function(event) {
+        if (event.code === "Space") {
+            renderTriangles(context);
+            // drawInputTrianglesUsingPaths(context);
+        }
+    });
+
  
     // Create the image
     //drawRandPixels(context);
